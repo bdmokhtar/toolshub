@@ -1,0 +1,224 @@
+<!-- ============================================
+     ফাইল আপলোড উইজেট — আপনার ওয়েবসাইটে বসান
+     ============================================
+     এই পুরো ব্লকটা (HTML+CSS+JS) যেকোনো পেজের
+     <body> এর ভেতরে যেখানে আপলোড ফর্ম দেখাতে চান
+     সেখানে পেস্ট করে দিন।
+
+     নিচে "WORKER_URL" জায়গায় আপনার Cloudflare
+     Worker-এর URL বসান।
+     ============================================ -->
+
+<div id="fileUploadWidget">
+  <style>
+    #fileUploadWidget * { box-sizing: border-box; }
+    #fileUploadWidget {
+      --fw-accent: #6366f1;
+      --fw-accent-hover: #4f46e5;
+      --fw-bg: #16161d;
+      --fw-border: #2a2a35;
+      --fw-text: #e4e4e7;
+      --fw-muted: #9ca3af;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 420px;
+      margin: 0 auto;
+      background: var(--fw-bg);
+      border: 1px solid var(--fw-border);
+      border-radius: 14px;
+      padding: 28px;
+      color: var(--fw-text);
+    }
+    #fileUploadWidget h3 { margin: 0 0 4px; font-size: 18px; text-align: center; }
+    #fileUploadWidget p.fw-sub { color: var(--fw-muted); font-size: 13px; text-align: center; margin: 0 0 20px; }
+    #fileUploadWidget .fw-dropzone {
+      border: 2px dashed var(--fw-border);
+      border-radius: 10px;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 14px;
+      transition: 0.2s;
+    }
+    #fileUploadWidget .fw-dropzone:hover,
+    #fileUploadWidget .fw-dropzone.fw-drag { border-color: var(--fw-accent); background: rgba(99,102,241,0.06); }
+    #fileUploadWidget .fw-filename { margin-top: 6px; font-size: 12px; color: var(--fw-accent); word-break: break-all; }
+    #fileUploadWidget input[type="file"] { display: none; }
+    #fileUploadWidget .fw-field { margin-bottom: 14px; }
+    #fileUploadWidget label { display: block; font-size: 12px; color: var(--fw-muted); margin-bottom: 5px; }
+    #fileUploadWidget input[type="password"], #fileUploadWidget select {
+      width: 100%; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid var(--fw-border); background: #0f0f14;
+      color: var(--fw-text); font-size: 13px; outline: none;
+    }
+    #fileUploadWidget button {
+      width: 100%; padding: 12px; border: none; border-radius: 8px;
+      background: var(--fw-accent); color: #fff; font-size: 14px;
+      font-weight: 600; cursor: pointer;
+    }
+    #fileUploadWidget button:hover { background: var(--fw-accent-hover); }
+    #fileUploadWidget button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #fileUploadWidget .fw-progress {
+      width: 100%; height: 5px; background: var(--fw-border);
+      border-radius: 999px; overflow: hidden; margin-top: 12px; display: none;
+    }
+    #fileUploadWidget .fw-progress.show { display: block; }
+    #fileUploadWidget .fw-progress-bar { height: 100%; background: var(--fw-accent); width: 0%; }
+    #fileUploadWidget .fw-result {
+      margin-top: 16px; padding: 14px; background: #0f0f14;
+      border-radius: 8px; border: 1px solid var(--fw-border); display: none;
+    }
+    #fileUploadWidget .fw-result.show { display: block; }
+    #fileUploadWidget .fw-link-row { display: flex; gap: 6px; margin-top: 8px; }
+    #fileUploadWidget .fw-link-row input {
+      flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--fw-border);
+      background: #0a0a0f; color: var(--fw-accent); font-size: 12px;
+    }
+    #fileUploadWidget .fw-copy { width: auto; padding: 8px 14px; font-size: 12px; }
+    #fileUploadWidget .fw-error { color: #f87171; font-size: 12px; margin-top: 8px; text-align: center; }
+    #fileUploadWidget .fw-badge {
+      display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+      background: rgba(99,102,241,0.15); color: #a5a6f6; margin-bottom: 6px;
+    }
+  </style>
+
+  <h3>📁 ফাইল আপলোড করুন</h3>
+  <p class="fw-sub">সর্বোচ্চ ২৫ MB</p>
+
+  <form id="fwForm">
+    <div class="fw-dropzone" id="fwDropzone">
+      <div>ফাইল বাছতে ক্লিক করুন বা ড্র্যাগ করুন</div>
+      <div class="fw-filename" id="fwFilename"></div>
+    </div>
+    <input type="file" id="fwFileInput" required>
+
+    <div class="fw-field">
+      <label>পাসওয়ার্ড (ঐচ্ছিক)</label>
+      <input type="password" id="fwPassword" placeholder="ফাঁকা রাখলে সবাই খুলতে পারবে">
+    </div>
+
+    <div class="fw-field">
+      <label>মেয়াদ</label>
+      <select id="fwExpiry">
+        <option value="0">কখনো মেয়াদ শেষ হবে না</option>
+        <option value="1">১ দিন</option>
+        <option value="7">৭ দিন</option>
+        <option value="30">৩০ দিন</option>
+      </select>
+    </div>
+
+    <button type="submit" id="fwSubmitBtn">আপলোড করুন</button>
+    <div class="fw-progress" id="fwProgress"><div class="fw-progress-bar" id="fwProgressBar"></div></div>
+    <div class="fw-error" id="fwError"></div>
+  </form>
+
+  <div class="fw-result" id="fwResult">
+    <span class="fw-badge" id="fwProtectedBadge" style="display:none;">🔒 পাসওয়ার্ড সুরক্ষিত</span>
+    <div style="font-size:13px; color:var(--fw-muted);">আপলোড সম্পন্ন ✅</div>
+    <div class="fw-link-row">
+      <input type="text" id="fwFileUrl" readonly>
+      <button type="button" class="fw-copy" id="fwCopyBtn">কপি</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // 👇 এখানে আপনার Cloudflare Worker-এর URL বসান
+  const WORKER_URL = "https://fileupload.9sarahx.workers.dev";
+
+  const dropzone = document.getElementById('fwDropzone');
+  const fileInput = document.getElementById('fwFileInput');
+  const filenameEl = document.getElementById('fwFilename');
+  const form = document.getElementById('fwForm');
+  const submitBtn = document.getElementById('fwSubmitBtn');
+  const progress = document.getElementById('fwProgress');
+  const progressBar = document.getElementById('fwProgressBar');
+  const errorEl = document.getElementById('fwError');
+  const result = document.getElementById('fwResult');
+  const fileUrlInput = document.getElementById('fwFileUrl');
+  const copyBtn = document.getElementById('fwCopyBtn');
+  const protectedBadge = document.getElementById('fwProtectedBadge');
+  const passwordInput = document.getElementById('fwPassword');
+  const expiryInput = document.getElementById('fwExpiry');
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('fw-drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('fw-drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('fw-drag');
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      filenameEl.textContent = fileInput.files[0].name;
+    }
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) filenameEl.textContent = fileInput.files[0].name;
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    errorEl.textContent = '';
+    result.classList.remove('show');
+
+    if (!fileInput.files.length) {
+      errorEl.textContent = 'একটি ফাইল বাছুন।';
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fd.append('password', passwordInput.value);
+    fd.append('expiry', expiryInput.value);
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'আপলোড হচ্ছে...';
+    progress.classList.add('show');
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', WORKER_URL + '/upload');
+
+    xhr.upload.addEventListener('progress', function (e) {
+      if (e.lengthComputable) {
+        progressBar.style.width = (e.loaded / e.total * 100) + '%';
+      }
+    });
+
+    xhr.onload = function () {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'আপলোড করুন';
+      progress.classList.remove('show');
+      progressBar.style.width = '0%';
+
+      try {
+        const res = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300 && res.success) {
+          fileUrlInput.value = res.url;
+          protectedBadge.style.display = res.protected ? 'inline-block' : 'none';
+          result.classList.add('show');
+        } else {
+          errorEl.textContent = res.error || 'আপলোড ব্যর্থ হয়েছে।';
+        }
+      } catch (err) {
+        errorEl.textContent = 'একটি সমস্যা হয়েছে।';
+      }
+    };
+
+    xhr.onerror = function () {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'আপলোড করুন';
+      progress.classList.remove('show');
+      errorEl.textContent = 'নেটওয়ার্ক সমস্যা। Worker URL ঠিক আছে কিনা চেক করুন।';
+    };
+
+    xhr.send(fd);
+  });
+
+  copyBtn.addEventListener('click', function () {
+    fileUrlInput.select();
+    navigator.clipboard.writeText(fileUrlInput.value);
+    copyBtn.textContent = 'কপি হয়েছে!';
+    setTimeout(function () { copyBtn.textContent = 'কপি'; }, 1500);
+  });
+})();
+</script>
